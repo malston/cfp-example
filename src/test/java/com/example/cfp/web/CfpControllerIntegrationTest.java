@@ -5,8 +5,6 @@ import com.example.cfp.domain.Track;
 import com.example.cfp.domain.User;
 import com.example.cfp.domain.UserRepository;
 import com.example.cfp.submission.SubmissionRequest;
-import com.gargoylesoftware.htmlunit.WebClient;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,11 +14,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.htmlunit.MockMvcWebConnection;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
-
-import javax.servlet.Filter;
 
 import static org.assertj.core.api.Java6Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -35,12 +28,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class CfpControllerIntegrationTest {
 
     @Autowired
-    private Filter springSecurityFilterChain;
-
-    @Autowired
-    private WebClient client;
-
-    @Autowired
     private MockMvc mvc;
 
     @Autowired
@@ -48,19 +35,6 @@ public class CfpControllerIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
-
-    @Autowired
-    private WebApplicationContext context;
-
-    @Before
-    public void setup() throws Exception {
-        mvc = MockMvcBuilders
-                .webAppContextSetup(context)
-				.addFilters(springSecurityFilterChain)
-                .build();
-        client.setWebConnection(new MockMvcWebConnection(mvc, client));
-        client.getCookieManager().clearCookies();
-    }
 
     @Test
     public void submitTalk() throws Exception {

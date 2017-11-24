@@ -2,6 +2,8 @@ package com.example.cfp.web;
 
 import com.example.cfp.domain.Submission;
 import com.example.cfp.domain.Track;
+import com.example.cfp.domain.User;
+import com.example.cfp.security.SecurityConfig;
 import com.example.cfp.submission.SubmissionRequest;
 import com.example.cfp.submission.SubmissionService;
 import com.gargoylesoftware.htmlunit.WebClient;
@@ -12,21 +14,21 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.oauth2.client.EnableOAuth2Sso;
+import org.springframework.boot.autoconfigure.security.oauth2.OAuth2ClientProperties;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.AuthoritiesExtractor;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.PrincipalExtractor;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.ResourceServerProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.htmlunit.MockMvcWebConnection;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
 
-import javax.servlet.Filter;
 import java.io.IOException;
 
 import static org.mockito.BDDMockito.given;
@@ -34,10 +36,8 @@ import static org.mockito.Mockito.verify;
 
 @RunWith(SpringRunner.class)
 @WebMvcTest(CfpController.class)
+@Import(SecurityConfig.class)
 public class CfpControllerHtmlTest {
-
-    @Autowired
-    private Filter springSecurityFilterChain;
 
     @Autowired
     private WebClient client;
@@ -46,16 +46,11 @@ public class CfpControllerHtmlTest {
     private SubmissionService submissionService;
 
     @Autowired
-    private WebApplicationContext context;
+    MockMvc mockMvc;
 
     @Before
     public void setup() {
-        MockMvc mockMvc = MockMvcBuilders
-                .webAppContextSetup(context)
-                .addFilters(springSecurityFilterChain)
-                .build();
         client.setWebConnection(new MockMvcWebConnection(mockMvc, client));
-        client.getCookieManager().clearCookies();
     }
 
     @Test
@@ -79,32 +74,43 @@ public class CfpControllerHtmlTest {
     }
 
     @TestConfiguration
-    @EnableOAuth2Sso
-    static class TestSecurityConfig extends WebSecurityConfigurerAdapter {
+    @EnableConfigurationProperties(OAuth2ClientProperties.class)
+    static class TestSecurityConfig {
 
-        @Override
-        protected void configure(HttpSecurity http) throws Exception {
-            http.authorizeRequests()
-                    .antMatchers("/admin/**").hasRole("ADMIN")
-                    .antMatchers("/", "/news", "/submit", "/login**", "/css/**", "/img/**", "/webjars/**", "/bootstrap/**").permitAll()
-                    .anyRequest().authenticated()
-                    .and()
-                .csrf()
-                    .ignoringAntMatchers("/admin/h2-console/*")
-                    .and()
-                .logout()
-                    .logoutSuccessUrl("/")
-                    .permitAll()
-                    .and()
-                .headers()
-                    .frameOptions().sameOrigin();
+        private final OAuth2ClientProperties credentials;
+
+        public TestSecurityConfig(OAuth2ClientProperties credentials) {
+            this.credentials = credentials;
         }
 
         @Bean
         public ResourceServerProperties resourceServerProperties() {
-            return new ResourceServerProperties();
+            return new ResourceServerProperties(this.credentials.getClientId(),
+                    this.credentials.getClientSecret());
+        }
+
+        @Bean
+        public AuthoritiesExtractor authoritiesExtractor() {
+            return map -> {
+                String username = (String) map.get("login");
+                if ("jsmith".contains(username)) {
+                    return AuthorityUtils.commaSeparatedStringToAuthorityList("ROLE_USER,ROLE_ADMIN");
+                }
+                else {
+                    return AuthorityUtils.commaSeparatedStringToAuthorityList("ROLE_USER");
+                }
+            };
+        }
+
+        @Bean
+        public PrincipalExtractor principalExtractor() {
+            return map -> {
+                User speaker = new User("jsmith@example.com", "John Smith");
+                speaker.setGithub("jsmith");
+                speaker.setAvatarUrl("https://acme.org/team/jsmith/avatar");
+                return speaker;
+            };
         }
     }
-
 
 }
